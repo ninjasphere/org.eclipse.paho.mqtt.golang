@@ -53,18 +53,25 @@ func keepalive(c *MqttClient) {
 			WARN.Println(PNG, "keepalive stopped")
 			return
 		default:
-			last := uint(time.Since(c.lastContact.get()).Seconds())
-			//DEBUG.Println(PNG, "last contact: %d (timeout: %d)", last, c.options.timeout)
-			if last > c.options.keepAlive {
-				if !c.pingOutstanding {
-					DEBUG.Println(PNG, "keepalive sending ping")
-					ping := newPingReqMsg()
-					c.oboundP <- ping
-					c.pingOutstanding = true
-				} else {
-					CRITICAL.Println(PNG, "pingresp not received, disconnecting")
-					go c.options.onconnlost(c, errors.New("pingresp not received, disconnecting"))
-					c.disconnect()
+
+			if time.Since(c.lastContact.get()) > time.Minute*30 {
+				// ntp update? waking up from sleep?
+				c.lastContact.update()
+			} else {
+				last := uint(time.Since(c.lastContact.get()).Seconds())
+
+				//DEBUG.Println(PNG, "last contact: %d (timeout: %d)", last, c.options.timeout)
+				if last > c.options.keepAlive {
+					if !c.pingOutstanding {
+						DEBUG.Println(PNG, "keepalive sending ping")
+						ping := newPingReqMsg()
+						c.oboundP <- ping
+						c.pingOutstanding = true
+					} else {
+						CRITICAL.Println(PNG, "pingresp not received, disconnecting")
+						go c.options.onconnlost(c, errors.New("pingresp not received, disconnecting"))
+						c.disconnect()
+					}
 				}
 			}
 			time.Sleep(1 * time.Second)
